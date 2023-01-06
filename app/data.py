@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 
 import pandas as pd
@@ -8,13 +7,7 @@ from pydantic import BaseModel
 from torch.utils.data import Dataset
 from torchtyping import TensorType
 
-from app.transforms import Transform
-
-
-class DatasetMode(str, Enum):
-    TRAIN = "train"
-    VAL = "validation"
-    DEBUG = "debug"
+from app.schemas.transforms import Transform
 
 
 class CheXpertItem(BaseModel):

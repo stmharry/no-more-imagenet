@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Callable
 
 import torch
 from torchvision import transforms
 
-Transform = Callable[[torch.Tensor], torch.Tensor]
+from app.schemas.transforms import Transform
 
 
 @dataclass

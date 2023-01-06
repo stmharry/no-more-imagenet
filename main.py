@@ -3,8 +3,7 @@ from typing import Callable
 from absl import app, flags
 from torch.utils.data import DataLoader
 
-from app.config import Config
-from app.data import DatasetMode
+from app.schemas import Config, DatasetMode
 
 flags.DEFINE_string("config", "config.yaml", "Configuration file to use.")
 flags.DEFINE_enum("run", "train", ["train", "debug"], "Run endpoint.")
