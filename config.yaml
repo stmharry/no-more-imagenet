@@ -1,0 +1,63 @@
+data_loader:
+  train: &train_loader
+    dataset: &train_dataset
+      name: CheXpert
+      root_dir: /mnt/hdd/medical-imaging/data
+      csv_path: CheXpert-v1.0-small/train.csv
+      transform: &train_transform
+        name: Compose
+        transforms:
+          - name: RandomEqualize
+            p: 1.0
+          - name: RandomResizedCrop
+            size: [256, 256]
+            scale: !!python/tuple [0.5, 1.0]
+            ratio: !!python/tuple [1.0, 1.0]
+          - name: RandomApply
+            transforms:
+              - name: ColorJitter
+                brightness: 0.8
+                contrast: 0.8
+                saturation: 0.8
+                hue: 0.2
+            p: 0.8
+          - name: RandomRotation
+            degrees: 15
+          - name: GaussianNoise
+            sigma: 0.1
+          - name: GaussianBlur
+            kernel_size: 5
+            sigma: !!python/tuple [0.1, 2.0]
+          - name: ToTensor
+
+    batch_size: 128
+    shuffle: true
+    num_workers: 8
+    pin_memory: true
+    drop_last: true
+
+  validation:
+    <<: *train_loader
+    dataset:
+      <<: *train_dataset
+      csv_path: CheXpert-v1.0-small/valid.csv
+      transform:
+        <<: *train_transform
+
+    shuffle: false
+    drop_last: false
+
+  debug:
+    <<: *train_loader
+    dataset:
+      <<: *train_dataset
+      transform:
+        name: Compose
+        transforms:
+          - name: Resize
+            size: [256, 256]
+          - name: ToTensor
+
+    batch_size: 1
+    shuffle: false
+    drop_last: false
