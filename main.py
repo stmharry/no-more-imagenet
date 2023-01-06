@@ -12,14 +12,14 @@ FLAGS = flags.FLAGS
 
 
 def train(config: Config):
-    train_loader: DataLoader = config.data_loader[DatasetMode.TRAIN].to()
-    val_loader: DataLoader = config.data_loader[DatasetMode.VAL].to()
+    train_loader: DataLoader = config.input_fn[DatasetMode.TRAIN].to()
+    val_loader: DataLoader = config.input_fn[DatasetMode.VAL].to()
 
     # TODO(stmharry)
 
 
 def debug(config: Config):
-    debug_loader: DataLoader = config.data_loader[DatasetMode.DEBUG].to()
+    debug_loader: DataLoader = config.input_fn[DatasetMode.DEBUG].to()
 
     for batch in debug_loader:
         print(batch)

@@ -94,7 +94,7 @@ class DataLoaderConfig(ObjectConfig[DataLoader]):
 
 
 class Config(BaseModel):
-    data_loader: dict[DatasetMode, DataLoaderConfig]
+    input_fn: dict[DatasetMode, DataLoaderConfig]
 
     @classmethod
     def from_path(cls, path: str | Path) -> "Config":

@@ -1,5 +1,5 @@
-data_loader:
-  train: &train_loader
+input_fn:
+  train: &train_input_fn
     dataset: &train_dataset
       name: CheXpert
       root_dir: /mnt/hdd/medical-imaging/data
@@ -37,7 +37,7 @@ data_loader:
     drop_last: true
 
   validation:
-    <<: *train_loader
+    <<: *train_input_fn
     dataset:
       <<: *train_dataset
       csv_path: CheXpert-v1.0-small/valid.csv
@@ -48,7 +48,7 @@ data_loader:
     drop_last: false
 
   debug:
-    <<: *train_loader
+    <<: *train_input_fn
     dataset:
       <<: *train_dataset
       transform:
