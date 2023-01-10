@@ -1,46 +1,98 @@
+import importlib
 from types import ModuleType
-from typing import Any, ClassVar, Generic, Type, TypeVar, get_origin, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Protocol,
+    Type,
+    TypeGuard,
+    TypeVar,
+    Union,
+    get_args,
+)
 
-from pydantic import BaseModel, Extra
+from absl import logging
+from pydantic import BaseModel, Extra, Field, validator
 
 T = TypeVar("T")
+T_factory = Union[Type[T], Callable[..., T]]
+
+
+class GenericAlias(Protocol):
+    __origin__: type[object]
+
+
+class IndirectGenericSubclass(Protocol):
+    __orig_bases__: tuple[GenericAlias]
+
+
+def is_indirect_generic_subclass(
+    obj: object,
+) -> TypeGuard[IndirectGenericSubclass]:
+
+    bases = getattr(obj, "__orig_bases__")
+    return bases is not None and isinstance(bases, tuple)
 
 
 class ObjectConfig(BaseModel, Generic[T]):
-    modules: ClassVar[list[ModuleType]]
-    name: str
+    obj_cls: T_factory = Field(init=False, alias="__class__", repr=False)
 
-    @property
-    def obj_cls(self) -> Type[T]:
-        obj_cls: Type[T] | None
+    @validator("obj_cls", pre=True)
+    def convert_obj_cls(cls, name: str) -> Any:
+        obj_cls: T_factory | None = None
 
-        for module in self.__class__.modules:
-            obj_cls = getattr(module, self.name, None)
-            if obj_cls is not None:
-                break
+        module_name: str
+        cls_name: str
+        (module_name, _, obj_name) = name.rpartition(".")
+
+        if module_name == "":
+            module_name == "__main__"
+
+        module: ModuleType = importlib.import_module(module_name)
+        obj_cls = getattr(module, obj_name, None)
 
         if obj_cls is None:
-            raise ValueError(
-                f"Class {self.name} not found from modules: {self.__class__.modules}!"
-            )
+            logging.fatal(f"Referenced class {obj_cls} not found!")
 
         return obj_cls
 
-    def to(self) -> T:
-        obj: dict = self.dict(exclude={"name"})
+    def create(self, **kwargs: Any) -> T:
+        obj_dict: dict = self.dict()
+        logging.info(
+            f"Creating object `{self.obj_cls.__name__}` from config {obj_dict}."
+        )
 
-        type_hints: dict[str, Type[Any]] = get_type_hints(self.__class__)
-        for (field_name, field_type) in type_hints.items():
-            if get_origin(field_type) is ClassVar:
-                continue
-
+        for field_name in obj_dict.keys():
             field_value: Any = getattr(self, field_name)
 
             # use `ObjectConfig.to` if field is of type `ObjectConfig`
-            if issubclass(field_type, ObjectConfig):
-                obj[field_name] = field_value.to()
+            if isinstance(field_value, ObjectConfig):
+                obj_dict[field_name] = field_value.create()
 
-        return self.obj_cls(**obj)
+        if kwargs is not None:
+            obj_dict.update(kwargs)
+
+        assert is_indirect_generic_subclass(self.__class__)
+
+        obj: T = self.obj_cls(**obj_dict)
+        type_T: Type[T] = get_args(self.__class__.__orig_bases__[0])[0]
+        if not isinstance(obj, type_T):
+            logging.fatal(
+                f"Object {obj} is not a sub-class of config-specificed class `{type_T}`!"
+            )
+
+        return obj
+
+    # this has to be arranged to the last position to avoid overriding `dict`
+    def dict(self, *args, **kwargs) -> dict:
+        exclude: set | None = kwargs.pop("exclude", None)
+        if exclude is None:
+            exclude = set()
+
+        exclude = exclude | {"obj_cls"}
+
+        return super().dict(*args, exclude=exclude, **kwargs)
 
     class Config:
         extra = Extra.allow

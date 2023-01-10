@@ -1,4 +1,7 @@
-PY = python
+PY ?= python
+
+train:
+	@$(PY) main.py --config config.yaml
 
 debug:
-	@$(PY) main.py --config config.yaml --run debug
+	@$(PY) main.py --config config.yaml --debug

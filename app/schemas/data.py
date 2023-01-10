@@ -1,7 +1,4 @@
-import importlib
 from enum import Enum
-from types import ModuleType
-from typing import ClassVar
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -16,16 +13,9 @@ class DatasetMode(str, Enum):
 
 
 class DatasetConfig(ObjectConfig[Dataset]):
-    modules: ClassVar[list[ModuleType]] = [importlib.import_module("app.data")]
-
     csv_path: str
     transform: TransformConfig
 
 
 class DataLoaderConfig(ObjectConfig[DataLoader]):
-    modules: ClassVar[list[ModuleType]] = [
-        importlib.import_module("torch.utils.data"),
-    ]
-    name: str = "DataLoader"
-
     dataset: DatasetConfig

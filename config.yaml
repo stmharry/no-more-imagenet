@@ -1,63 +1,127 @@
 input_fn:
-  train: &train_input_fn
-    dataset: &train_dataset
-      name: CheXpert
-      root_dir: /mnt/hdd/medical-imaging/data
-      csv_path: CheXpert-v1.0-small/train.csv
-      transform: &train_transform
-        name: Compose
-        transforms:
-          - name: RandomEqualize
-            p: 1.0
-          - name: RandomResizedCrop
-            size: [256, 256]
-            scale: !!python/tuple [0.5, 1.0]
-            ratio: !!python/tuple [1.0, 1.0]
-          - name: RandomApply
-            transforms:
-              - name: ColorJitter
-                brightness: 0.8
-                contrast: 0.8
-                saturation: 0.8
-                hue: 0.2
-            p: 0.8
-          - name: RandomRotation
-            degrees: 15
-          - name: GaussianNoise
-            sigma: 0.1
-          - name: GaussianBlur
-            kernel_size: 5
-            sigma: !!python/tuple [0.1, 2.0]
-          - name: ToTensor
+  data_loader:
+    train: &train_data_loader
+      __class__: app.data.CyclingDataLoader
+      dataset: &train_dataset
+        __class__: app.data.CheXpert
+        root_dir: /mnt/hdd/medical-imaging/data
+        csv_path: CheXpert-v1.0-small/train.csv
+        transform: &train_transform
+          __class__: torchvision.transforms.Compose
+          transforms:
+            - __class__: torchvision.transforms.RandomEqualize
+              p: 1.0
+            - __class__: torchvision.transforms.RandomResizedCrop
+              size: [256, 256]
+              scale: !!python/tuple [0.5, 1.0]
+              ratio: !!python/tuple [1.0, 1.0]
+            - __class__: torchvision.transforms.RandomApply
+              transforms:
+                - __class__: torchvision.transforms.ColorJitter
+                  brightness: 0.8
+                  contrast: 0.8
+                  saturation: 0.8
+                  hue: 0.2
+              p: 0.8
+            - __class__: torchvision.transforms.RandomRotation
+              degrees: 15
+            - __class__: app.transforms.GaussianNoise
+              sigma: 0.1
+            - __class__: torchvision.transforms.GaussianBlur
+              kernel_size: 5
+              sigma: !!python/tuple [0.1, 2.0]
+            - __class__: torchvision.transforms.ToTensor
 
-    batch_size: 128
-    shuffle: true
-    num_workers: 8
-    pin_memory: true
-    drop_last: true
+      batch_size: 128
+      shuffle: true
+      num_workers: 8
+      pin_memory: true
+      drop_last: true
 
-  validation:
-    <<: *train_input_fn
-    dataset:
-      <<: *train_dataset
-      csv_path: CheXpert-v1.0-small/valid.csv
-      transform:
-        <<: *train_transform
+    validation:
+      <<: *train_data_loader
+      __class__: torch.utils.data.DataLoader
+      dataset:
+        <<: *train_dataset
+        csv_path: CheXpert-v1.0-small/valid.csv
+        transform:
+          <<: *train_transform
 
-    shuffle: false
-    drop_last: false
+      shuffle: false
+      drop_last: false
 
-  debug:
-    <<: *train_input_fn
-    dataset:
-      <<: *train_dataset
-      transform:
-        name: Compose
-        transforms:
-          - name: Resize
-            size: [256, 256]
-          - name: ToTensor
+    debug:
+      <<: *train_data_loader
+      dataset:
+        <<: *train_dataset
+        transform: &debug_transform
+          __class__: torchvision.transforms.Compose
+          transforms:
+            - __class__: torchvision.transforms.RandomResizedCrop
+              size: [256, 256]
+              scale: !!python/tuple [0.5, 1.0]
+              ratio: !!python/tuple [1.0, 1.0]
+            - __class__: torchvision.transforms.ToTensor
 
-    batch_size: 1
-    shuffle: false
-    drop_last: false
+      batch_size: 2
+      shuffle: false
+      drop_last: false
+
+model_fn:
+  model:
+    resnet:
+      __class__: app.models.ResNetSimCLR
+      backbone:
+        __class__: torchvision.models.resnet18
+        weights: ResNet18_Weights.IMAGENET1K_V1
+      fc0:
+        __class__: torch.nn.Linear
+        in_features: 512
+        out_features: 512
+      relu0:
+        __class__: torch.nn.ReLU
+      fc1:
+        __class__: torch.nn.Linear
+        in_features: 512
+        out_features: 128
+
+  criterion:
+    info_nce:
+      weight: 1.0
+      loss:
+        __class__: app.losses.InfoNCELoss
+        temperature: 0.07
+        subloss:
+          __class__: torch.nn.CrossEntropyLoss
+
+  metrics:
+    accuracy:
+
+
+estimator:
+  train:
+    optimizer:
+      __class__: torch.optim.Adam
+      # params: model_fn.model.resnet
+      lr: 0.001
+      weight_decay: 0.000_1
+
+    scheduler:
+      __class__: torch.optim.lr_scheduler.CosineAnnealingLR
+      T_max: 64
+      eta_min: 0
+      last_epoch: -1
+
+    scaler:
+      __class__: torch.cuda.amp.GradScaler
+      # enabled: estimator.train.use_fp16
+
+    device: "cuda"
+    use_fp16: true
+
+    # max_steps: 250_000
+    max_steps: 1
+    log_step_count_steps: 10
+    save_summary_steps: 10
+    save_checkpoints_steps: 10_000
+    warmup_steps: 1000

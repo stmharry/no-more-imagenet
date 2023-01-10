@@ -1,33 +1,28 @@
-import importlib
-from types import ModuleType
-from typing import Callable, ClassVar
+from typing import Any, Callable
 
-import torch
+from torch import Tensor
 
 from app.schemas.base import ObjectConfig
 
-Transform = Callable[[torch.Tensor], torch.Tensor]
+Transform = Callable[[Tensor], Tensor]
 
 
 class TransformConfig(ObjectConfig[Transform]):
-    modules: ClassVar[list[ModuleType]] = [
-        importlib.import_module("torchvision.transforms"),
-        importlib.import_module("app.transforms"),
-    ]
-
     transforms: list["TransformConfig"] | None = None
 
-    def to(self) -> Transform:
-        obj: dict = self.dict(exclude={"name"})
+    def create(self, **kwargs: dict[str, Any]) -> Transform:
+        obj_dict: dict = self.dict()
 
         if self.transforms is None:
-            del obj["transforms"]
-
+            del obj_dict["transforms"]
         else:
             transforms: list[Transform] = [
-                transform.to() for transform in self.transforms
+                transform.create() for transform in self.transforms
             ]
 
-            obj["transforms"] = transforms
+            obj_dict["transforms"] = transforms
 
-        return self.obj_cls(**obj)
+        if kwargs is not None:
+            obj_dict.update(kwargs)
+
+        return self.obj_cls(**obj_dict)
