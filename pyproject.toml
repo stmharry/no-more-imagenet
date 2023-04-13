@@ -18,7 +18,7 @@ Pillow = "^9.4.0"
 rich = "^13.0.1"
 
 [tool.poetry.dev-dependencies]
-devtools = {extras = ["pygments"], version = "^0.10.0"}
+devtools = { extras = ["pygments"], version = "^0.10.0" }
 mypy = "^0.991"
 types-PyYAML = "^6.0.12"
 

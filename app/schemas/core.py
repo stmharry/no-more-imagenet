@@ -1,14 +1,21 @@
 from pathlib import Path
+from typing import Mapping
 
 import torch
 import yaml
 from absl import logging
 from pydantic import BaseModel
+from torchtyping import TensorType
 
 from app.schemas.base import ObjectConfig
 from app.schemas.data import DataLoaderConfig, DatasetMode
 from app.schemas.losses import CriterionConfig
+from app.schemas.metrics import MetricConfig
 from app.schemas.models import ModelConfig
+
+MutableTensorDict = dict[str, torch.Tensor]
+TensorDict = Mapping[str, torch.Tensor]
+TensorScalar = TensorType[None]  # noqa: F821
 
 
 class InputFnConfig(BaseModel):
@@ -18,6 +25,7 @@ class InputFnConfig(BaseModel):
 class ModelFnConfig(BaseModel):
     model: dict[str, ModelConfig]
     criterion: dict[str, CriterionConfig]
+    metric: dict[str, MetricConfig]
 
 
 class OptimizerConfig(ObjectConfig[torch.optim.Optimizer]):

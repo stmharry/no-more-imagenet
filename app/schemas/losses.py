@@ -1,12 +1,9 @@
-from pydantic import BaseModel
+from torchtyping import TensorType
 
-from app.schemas.models import ModelConfig
+from app.schemas.base import ModuleConfig
 
-
-class LossConfig(ModelConfig):
-    pass
+TensorLoss = TensorType[None]  # noqa: F821
 
 
-class CriterionConfig(BaseModel):
+class CriterionConfig(ModuleConfig):
     weight: float = 1.0
-    loss: LossConfig

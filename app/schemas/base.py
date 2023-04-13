@@ -13,7 +13,8 @@ from typing import (
 )
 
 from absl import logging
-from pydantic import BaseModel, Extra, Field, validator
+from pydantic import BaseModel, Extra, Field, root_validator, validator
+from torch import nn
 
 T = TypeVar("T")
 T_factory = Union[Type[T], Callable[..., T]]
@@ -96,3 +97,20 @@ class ObjectConfig(BaseModel, Generic[T]):
 
     class Config:
         extra = Extra.allow
+
+
+class ModuleConfig(ObjectConfig[nn.Module]):
+    @root_validator
+    def build_sub_config(cls, values: dict[str, Any]) -> dict[str, Any]:
+        field_name: str
+        value: Any
+
+        for (field_name, value) in values.items():
+            try:
+                config = ModuleConfig.parse_obj(value)
+            except Exception:
+                continue
+
+            values[field_name] = config
+
+        return values

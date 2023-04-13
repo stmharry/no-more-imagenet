@@ -1,10 +1,10 @@
 from typing import Any, Callable
 
-from torch import Tensor
+import torch
 
 from app.schemas.base import ObjectConfig
 
-Transform = Callable[[Tensor], Tensor]
+Transform = Callable[[torch.Tensor], torch.Tensor]
 
 
 class TransformConfig(ObjectConfig[Transform]):

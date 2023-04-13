@@ -35,7 +35,7 @@ input_fn:
       batch_size: 128
       shuffle: true
       num_workers: 8
-      pin_memory: true
+      pin_memory: false
       drop_last: true
 
     validation:
@@ -63,7 +63,7 @@ input_fn:
               ratio: !!python/tuple [1.0, 1.0]
             - __class__: torchvision.transforms.ToTensor
 
-      batch_size: 2
+      batch_size: 4
       shuffle: false
       drop_last: false
 
@@ -87,16 +87,19 @@ model_fn:
 
   criterion:
     info_nce:
+      __class__: app.losses.InfoNCELoss
       weight: 1.0
-      loss:
-        __class__: app.losses.InfoNCELoss
-        temperature: 0.07
-        subloss:
-          __class__: torch.nn.CrossEntropyLoss
+      temperature: 0.07
+      f:
+        __class__: torch.nn.CrossEntropyLoss
 
-  metrics:
-    accuracy:
-
+  metric:
+    acc1:
+      __class__: app.metrics.InfoNCEAccuracy
+      top_k: 1
+    acc5:
+      __class__: app.metrics.InfoNCEAccuracy
+      top_k: 5
 
 estimator:
   train:
@@ -116,8 +119,8 @@ estimator:
       __class__: torch.cuda.amp.GradScaler
       # enabled: estimator.train.use_fp16
 
-    device: "cuda"
-    use_fp16: true
+    device: "cpu"
+    use_fp16: false
 
     # max_steps: 250_000
     max_steps: 1

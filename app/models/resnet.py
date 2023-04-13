@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 import torch
 from torch import nn
 from torchtyping import TensorType
 
-from app.models.base import Model
+from app.modules import DataclassModule
+from app.schemas.core import TensorDict
 
 
 class ResNet(Protocol):
@@ -20,20 +21,28 @@ class ResNet(Protocol):
     avgpool: nn.Module
 
 
+class ResNetSimCLRFeaturesInput(TypedDict):
+    image: TensorType["batch", "channels", "height", "width"]  # noqa: F821
+
+
+class ResNetSimCLRFeaturesOutput(TypedDict):
+    embedding: TensorType["batch", "feat_size"]  # noqa: F821
+
+
 @dataclass(unsafe_hash=True)
-class ResNetSimCLR(Model):
+class ResNetSimCLR(DataclassModule):
     backbone: ResNet
     fc0: nn.Module
     relu0: nn.Module
     fc1: nn.Module
 
-    def forward(
-        self,
-        x: TensorType["batch", "channels", "height", "width"],  # noqa: F821
-    ) -> TensorType["batch", "feat_size"]:  # noqa: F821
+    def _forward_impl(
+        self, features: ResNetSimCLRFeaturesInput, labels: TensorDict, stats: TensorDict
+    ) -> tuple[ResNetSimCLRFeaturesOutput, TensorDict, TensorDict]:
+
+        x: torch.Tensor = features["image"]
 
         backbone: ResNet = self.backbone
-
         x = backbone.conv1(x)
         x = backbone.bn1(x)
         x = backbone.relu(x)
@@ -51,4 +60,4 @@ class ResNetSimCLR(Model):
         x = self.relu0(x)
         x = self.fc1(x)
 
-        return x
+        return ({"embedding": x}, {}, {})

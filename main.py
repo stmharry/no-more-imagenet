@@ -13,7 +13,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchtyping import TensorType
 
-from app.schemas import Config, CriterionConfig, DatasetMode, TrainConfig
+from app.schemas import Config, CriterionConfig, DatasetMode, TensorDict, TrainConfig
 
 flags.DEFINE_string("result_dir", "./results", "Result directory.")
 flags.DEFINE_string("config", "config.yaml", "Configuration file to use.")
@@ -25,9 +25,9 @@ def step(
     data_iter: Iterator,
     models: dict[str, nn.Module],
     criteria: dict[str, nn.Module],
+    metrics: dict[str, nn.Module],
     optimizer: torch.optim.Optimizer,
     config: Config,
-    scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
     scaler: torch.cuda.amp.GradScaler | None = None,
 ) -> None:
 
@@ -36,46 +36,54 @@ def step(
     device = torch.device(train_config.device)
     use_fp16: bool = train_config.use_fp16
 
-    model: nn.Module = models["resnet"]
-
+    features: TensorDict
+    labels: TensorDict
+    total_loss: TensorLoss
     (features, labels) = next(data_iter)
+    stats = {}
+
     with torch.autocast(train_config.device.split(":")[0], enabled=use_fp16):
         image: TensorType["batch_size", "instances", 1, "width", "height"]  # noqa: F821
         image = features["image"].to(device=device)
         image = torch.broadcast_to(image, image.shape[0:2] + (3,) + image.shape[3:5])
         image = torch.flatten(image, start_dim=0, end_dim=1)
 
-        embedding: TensorType["batch_size", "feat_size"]  # noqa: F821
-        embedding = model(image)
+        features.update({"image": image})
 
         index: TensorType["batch_size", "instances"]  # noqa: F821
         index = labels["index"].to(device=device)
         index = torch.flatten(index, start_dim=0, end_dim=1)
 
-        loss: TensorType[None]  # noqa: F821
-        losses: dict[str, TensorType[None]] = {}  # noqa: F821
-        for (name, criterion) in criteria.items():
-            weight: float = criterion_configs[name].weight
+        labels.update({"index": index})
 
-            loss = weight * criterion(embedding, index)
-            losses[name] = loss
+        models["resnet"](features, labels, stats)
+        criteria["info_nce"](features, labels, stats)
+        metrics["acc1"](features, labels, stats)
+        metrics["acc5"](features, labels, stats)
 
-        total_loss = torch.sum(torch.stack(list(losses.values())))
+        # should the interface be like this?
+        #
+        # outputs = models["resnet"](**features, **labels)
+        # features.update_from(outputs, ["embedding"])
+
+        total_loss = stats["info_nce_loss"]
 
     optimizer.zero_grad()
 
-    if scaler is not None:
-        total_loss = scaler.scale(total_loss)
+    if scaler is None:
+        total_loss.backward()
+        optimizer.step()
 
-    total_loss.backward()
-
-    if scaler is not None:
+    else:
+        scaler.scale(total_loss).backward()
         scaler.step(optimizer)
         scaler.update()
 
+    breakpoint()
+
 
 def main(_) -> None:
-    # processing config
+    # config
 
     result_dir: Path
     if FLAGS.debug:
@@ -92,7 +100,7 @@ def main(_) -> None:
 
     config: Config = Config.from_path(config_path)
 
-    # initializing
+    # input_fn creation
 
     data_loader_configs = config.input_fn.data_loader
     train_config = config.estimator.train
@@ -110,13 +118,19 @@ def main(_) -> None:
 
     train_iter: Iterator = iter(train_loader)
 
+    # model_fn creation
+
     models: dict[str, nn.Module] = {}
-    for (name, model_config) in config.model_fn.model.items():
-        models[name] = model_config.create().to(device=device)
+    for (name, _config) in config.model_fn.model.items():
+        models[name] = _config.create().to(device=device)
 
     criteria: dict[str, nn.Module] = {}
-    for (name, criterion_config) in config.model_fn.criterion.items():
-        criteria[name] = criterion_config.loss.create()
+    for (name, _config) in config.model_fn.criterion.items():
+        criteria[name] = _config.create()
+
+    metrics: dict[str, nn.Module] = {}
+    for (name, _config) in config.model_fn.metric.items():
+        metrics[name] = _config.create()
 
     optimizer = train_config.optimizer.create(params=models["resnet"].parameters())
     scheduler = train_config.scheduler.create(optimizer=optimizer)
@@ -130,8 +144,8 @@ def main(_) -> None:
             data_iter=train_iter,
             models=models,
             criteria=criteria,
+            metrics=metrics,
             optimizer=optimizer,
-            scheduler=scheduler,
             scaler=scaler,
             config=config,
         )
