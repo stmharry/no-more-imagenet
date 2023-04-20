@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from torchtyping import TensorType
 
-from app.modules import DataclassModule
+from app.modules import ModelModule
 from app.schemas.core import TensorDict
 from app.schemas.losses import TensorLoss
 
@@ -28,7 +28,7 @@ class InfoNCELossLabelsOutput(TypedDict):
 
 
 @dataclass(unsafe_hash=True)
-class InfoNCELoss(DataclassModule):
+class InfoNCELoss(ModelModule):
     weight: float
     temperature: float
     f: nn.Module
@@ -39,7 +39,6 @@ class InfoNCELoss(DataclassModule):
         labels: InfoNCELossLabelsInput,
         stats: TensorDict,
     ) -> tuple[InfoNCELossFeaturesOutput, InfoNCELossLabelsOutput, TensorLoss]:
-
         embedding: torch.Tensor = features["embedding"]
         index: torch.Tensor = labels["index"]
 

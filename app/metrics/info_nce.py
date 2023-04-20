@@ -5,7 +5,7 @@ import torch
 from torchmetrics.functional.classification import multiclass_accuracy
 from torchtyping import TensorType
 
-from app.modules import DataclassModule
+from app.modules import ModelModule
 from app.schemas.core import TensorDict
 from app.schemas.losses import TensorLoss
 
@@ -27,7 +27,7 @@ class InfoNCEAccuracyLabelsOutput(TypedDict):
 
 
 @dataclass(unsafe_hash=True)
-class InfoNCEAccuracy(DataclassModule):
+class InfoNCEAccuracy(ModelModule):
     top_k: int
 
     def _forward_impl(
@@ -36,7 +36,6 @@ class InfoNCEAccuracy(DataclassModule):
         labels: InfoNCEAccuracyLabelsInput,
         stats: TensorDict,
     ) -> tuple[InfoNCEAccuracyFeaturesOutput, InfoNCEAccuracyLabelsOutput, TensorLoss]:
-
         logit: torch.Tensor = features["logit"]
         label: torch.Tensor = labels["label"]
 

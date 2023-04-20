@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torchtyping import TensorType
 
-from app.modules import DataclassModule
+from app.modules import ModelModule
 from app.schemas.core import TensorDict
 
 
@@ -30,7 +30,7 @@ class ResNetSimCLRFeaturesOutput(TypedDict):
 
 
 @dataclass(unsafe_hash=True)
-class ResNetSimCLR(DataclassModule):
+class ResNetSimCLR(ModelModule):
     backbone: ResNet
     fc0: nn.Module
     relu0: nn.Module
@@ -39,7 +39,6 @@ class ResNetSimCLR(DataclassModule):
     def _forward_impl(
         self, features: ResNetSimCLRFeaturesInput, labels: TensorDict, stats: TensorDict
     ) -> tuple[ResNetSimCLRFeaturesOutput, TensorDict, TensorDict]:
-
         x: torch.Tensor = features["image"]
 
         backbone: ResNet = self.backbone
