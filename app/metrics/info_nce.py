@@ -34,8 +34,7 @@ class InfoNCEAccuracy(ModelModule):
         self,
         features: InfoNCEAccuracyFeaturesInput,
         labels: InfoNCEAccuracyLabelsInput,
-        stats: TensorDict,
-    ) -> tuple[InfoNCEAccuracyFeaturesOutput, InfoNCEAccuracyLabelsOutput, TensorLoss]:
+    ) -> tuple[InfoNCEAccuracyFeaturesOutput, InfoNCEAccuracyLabelsOutput]:
         logit: torch.Tensor = features["logit"]
         label: torch.Tensor = labels["label"]
 
@@ -49,4 +48,4 @@ class InfoNCEAccuracy(ModelModule):
             average=None,
         )
 
-        return ({}, {}, {f"info_nce_acc@{self.top_k}": acc_per_class[0]})
+        return ({f"info_nce_acc@{self.top_k}": acc_per_class[0]}, {})

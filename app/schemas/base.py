@@ -31,7 +31,6 @@ class IndirectGenericSubclass(Protocol):
 def is_indirect_generic_subclass(
     obj: object,
 ) -> TypeGuard[IndirectGenericSubclass]:
-
     bases = getattr(obj, "__orig_bases__")
     return bases is not None and isinstance(bases, tuple)
 
@@ -100,12 +99,14 @@ class ObjectConfig(BaseModel, Generic[T]):
 
 
 class ModuleConfig(ObjectConfig[nn.Module]):
+    """load the configurations from config.yaml and build a dict containing the name and objects"""
+
     @root_validator
     def build_sub_config(cls, values: dict[str, Any]) -> dict[str, Any]:
         field_name: str
         value: Any
 
-        for (field_name, value) in values.items():
+        for field_name, value in values.items():
             try:
                 config = ModuleConfig.parse_obj(value)
             except Exception:

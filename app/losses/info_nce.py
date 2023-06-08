@@ -37,8 +37,7 @@ class InfoNCELoss(ModelModule):
         self,
         features: InfoNCELossFeaturesInput,
         labels: InfoNCELossLabelsInput,
-        stats: TensorDict,
-    ) -> tuple[InfoNCELossFeaturesOutput, InfoNCELossLabelsOutput, TensorLoss]:
+    ) -> tuple[InfoNCELossFeaturesOutput, InfoNCELossLabelsOutput]:
         embedding: torch.Tensor = features["embedding"]
         index: torch.Tensor = labels["index"]
 
@@ -77,7 +76,6 @@ class InfoNCELoss(ModelModule):
             )
 
         return (
-            {"logit": logit},
+            {"logit": logit, "info_nce_loss": self.weight * loss},
             {"label": label},
-            {"info_nce_loss": self.weight * loss},
         )

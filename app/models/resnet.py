@@ -37,8 +37,8 @@ class ResNetSimCLR(ModelModule):
     fc1: nn.Module
 
     def _forward_impl(
-        self, features: ResNetSimCLRFeaturesInput, labels: TensorDict, stats: TensorDict
-    ) -> tuple[ResNetSimCLRFeaturesOutput, TensorDict, TensorDict]:
+        self, features: ResNetSimCLRFeaturesInput, labels: TensorDict
+    ) -> tuple[ResNetSimCLRFeaturesOutput, TensorDict]:
         x: torch.Tensor = features["image"]
 
         backbone: ResNet = self.backbone
@@ -59,4 +59,4 @@ class ResNetSimCLR(ModelModule):
         x = self.relu0(x)
         x = self.fc1(x)
 
-        return ({"embedding": x}, {}, {})
+        return ({"embedding": x}, {})
