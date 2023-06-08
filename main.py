@@ -11,9 +11,18 @@ import torch
 from absl import app, flags, logging
 from torch import nn
 from torch.utils.data import DataLoader
+import tensorboardX
 from torchtyping import TensorType
 
-from app.schemas import Config, CriterionConfig, DatasetMode, TensorDict, TrainConfig
+from app.schemas import (
+    Config,
+    CriterionConfig,
+    MetricConfig,
+    DatasetMode,
+    TensorDict,
+    TrainConfig,
+)
+
 
 flags.DEFINE_string("result_dir", "./results", "Result directory.")
 flags.DEFINE_string("config", "config.yaml", "Configuration file to use.")
@@ -22,6 +31,7 @@ FLAGS = flags.FLAGS
 
 
 def step(
+    current_step: int,
     data_iter: Iterator,
     models: dict[str, nn.Module],
     criteria: dict[str, nn.Module],
@@ -29,9 +39,10 @@ def step(
     optimizer: torch.optim.Optimizer,
     config: Config,
     scaler: torch.cuda.amp.GradScaler | None = None,
+    writer: tensorboardX.SummaryWriter | None = None,
 ) -> None:
-
     criterion_configs: dict[str, CriterionConfig] = config.model_fn.criterion
+    metrics_configs: dict[str, MetricConfig] = config.model_fn.metric
     train_config: TrainConfig = config.estimator.train
     device = torch.device(train_config.device)
     use_fp16: bool = train_config.use_fp16
@@ -56,17 +67,24 @@ def step(
 
         labels.update({"index": index})
 
-        models["resnet"](features, labels, stats)
-        criteria["info_nce"](features, labels, stats)
-        metrics["acc1"](features, labels, stats)
-        metrics["acc5"](features, labels, stats)
+        # features: exist in both training phase and testing phase
+        # labels: only for training phase
+        # To Do:
+        # 1. remove stats;
+        # 2. think about some_list
 
-        # should the interface be like this?
-        #
-        # outputs = models["resnet"](**features, **labels)
-        # features.update_from(outputs, ["embedding"])
+        # for model in some_list:
+        # _features, _labels = model(features, labels)
+        # check key collision
+        # features.update(_features)
+        # labels.update(_labels)
 
-        total_loss = stats["info_nce_loss"]
+        models["resnet"](features, labels)  # fit data into model
+        criteria["info_nce"](features, labels)
+        metrics["acc1"](features, labels)
+        metrics["acc5"](features, labels)
+
+        total_loss = features["info_nce_loss"]
 
     optimizer.zero_grad()
 
@@ -79,7 +97,8 @@ def step(
         scaler.step(optimizer)
         scaler.update()
 
-    breakpoint()
+    if writer is not None:
+        writer.add_scalar("loss", total_loss, global_step=current_step)
 
 
 def main(_) -> None:
@@ -121,26 +140,29 @@ def main(_) -> None:
     # model_fn creation
 
     models: dict[str, nn.Module] = {}
-    for (name, _config) in config.model_fn.model.items():
+    for name, _config in config.model_fn.model.items():
         models[name] = _config.create().to(device=device)
 
     criteria: dict[str, nn.Module] = {}
-    for (name, _config) in config.model_fn.criterion.items():
+    for name, _config in config.model_fn.criterion.items():
         criteria[name] = _config.create()
 
     metrics: dict[str, nn.Module] = {}
-    for (name, _config) in config.model_fn.metric.items():
+    for name, _config in config.model_fn.metric.items():
         metrics[name] = _config.create()
 
     optimizer = train_config.optimizer.create(params=models["resnet"].parameters())
     scheduler = train_config.scheduler.create(optimizer=optimizer)
     scaler = train_config.scaler.create(enabled=use_fp16)
 
+    writer = tensorboardX.SummaryWriter(log_dir=result_dir)
+
     for num_step in itertools.count():
         if num_step == train_config.max_steps:
             break
 
         step(
+            current_step=num_step,
             data_iter=train_iter,
             models=models,
             criteria=criteria,
@@ -148,6 +170,7 @@ def main(_) -> None:
             optimizer=optimizer,
             scaler=scaler,
             config=config,
+            writer=writer,
         )
 
         if num_step > train_config.warmup_steps:

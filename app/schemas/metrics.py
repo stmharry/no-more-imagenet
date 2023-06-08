@@ -6,4 +6,4 @@ TensorMetric = TensorType[None]  # noqa: F821
 
 
 class MetricConfig(ModuleConfig):
-    pass
+    top_k: int = 1
